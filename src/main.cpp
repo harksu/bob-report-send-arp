@@ -52,6 +52,22 @@ Mac get_my_mac_address(const char* my_interface){
 	return Mac((uint8_t*)interface_structure.ifr_hwaddr.sa_data);
 }
 
+Ip get_my_ip_address(const char* my_interface){
+	struct ifreq interface_structure;
+    struct sockaddr_in* ip_addr;
+    int file_descriptor;
+
+    file_descriptor = socket(AF_INET, SOCK_DGRAM, 0);
+    interface_structure.ifr_addr.sa_family = AF_INET;
+    strncpy(interface_structure.ifr_name, my_interface, IFNAMSIZ-1);
+    ioctl(file_descriptor, SIOCGIFADDR, &interface_structure);
+    close(file_descriptor);
+
+    ip_addr = (struct sockaddr_in*)&interface_structure.ifr_addr;
+    return Ip(ip_addr->sin_addr.s_addr);
+
+}
+
 
 Mac get_sender_mac_address(pcap_t* handle, Mac source_mac, Ip source_ip, Ip sender_ip ){
 	//타겟의 mac 주소를 모른다는 가정하에 접근하고, 이에 따른 응답으로 mac 주소를 배우는 구조이므로 기존의 스켈레톤 코드를 통한 함수화
@@ -174,7 +190,13 @@ int main(int argc, char* argv[]) {
 
 
 
-	Ip myIp = Ip("192.168.219.105"); // => 이걸 내 ip를 가져오는 형식으로 하면 더 좋을 것 같다.
+	Ip myIp = get_my_ip_address(dev); 	
+
+		printf("IP Address of interface : ");
+        print_ip(myIp);
+        printf("\n");
+  
+
 
 
 	for (int i = 2; i < argc; i += 2) {
