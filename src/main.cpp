@@ -25,7 +25,7 @@ void usage() {
 
 void print_ip(uint32_t ip) {
     struct in_addr ip_addr;
-    ip_addr.s_addr = ip;
+    ip_addr.s_addr = htonl(ip);
     printf("%s", inet_ntoa(ip_addr));
 	//와이어샤크 디버깅용으로 만든 임의 함수
 }
@@ -167,7 +167,7 @@ void send_Arp(pcap_t* handle, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip t
 
 
 int main(int argc, char* argv[]) {
-	if (argc != 4 || argc %2 != 0) {
+	if (argc < 4 || argc %2 != 0) {
 		usage();
 		return -1;
 	}
