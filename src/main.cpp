@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <iostream>
 #include<arpa/inet.h>
+#include <chrono>
+#include <thread>
 
 #include "ethhdr.h"
 #include "arphdr.h"
@@ -167,7 +169,7 @@ void send_Arp(pcap_t* handle, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip t
 
 
 int main(int argc, char* argv[]) {
-	if (argc < 4 || argc %2 != 0) {
+	if (argc < 4 || argc % 2 != 0) {
 		usage();
 		return -1;
 	}
@@ -188,33 +190,41 @@ int main(int argc, char* argv[]) {
 		return -1;
 	}
 
-
-
 	Ip myIp = get_my_ip_address(dev); 	
 
-		printf("IP Address of interface : ");
-        print_ip(myIp);
-        printf("\n");
-  
+	printf("IP Address of interface : ");
+	print_ip(myIp);
+	printf("\n");
 
-
-
+	// 여러 쌍의 sender와 target을 처리하는 루프
 	for (int i = 2; i < argc; i += 2) {
 		Ip senderIp = Ip(argv[i]);
-		Ip targetIp = Ip(argv[i+1]);
+		Ip targetIp = Ip(argv[i + 1]);
 
-		
+		std::cout << "[INFO] Processing pair: Sender IP = ";
+		print_ip(senderIp);
+		std::cout << ", Target IP = ";
+		print_ip(targetIp);
+		std::cout << std::endl;
+
+		// 각 sender IP에 대해 ARP 요청을 보내고 MAC 주소를 얻음
 		Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
 
 		if (senderMac.isNull()) {
-			fprintf(stderr, "Failed to get MAC address for IP: %s\n", std::string(senderIp).c_str());
+			fprintf(stderr, "Failed to get MAC address for IP: ");
+			print_ip(senderIp);
+			std::cout << std::endl;
 			continue;
 		}
 
-		
+		// 얻은 MAC 주소를 사용하여 ARP 스푸핑 패킷을 보냄
 		send_Arp(handle, myMac, targetIp, senderMac, senderIp);
-	}
 
+		std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
+
+		// 다음 쌍으로 넘어가기 전에 대기 (예: 1초 대기)
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+	}
 
 	pcap_close(handle);
 }
