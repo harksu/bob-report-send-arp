@@ -31,15 +31,6 @@ void print_ip(uint32_t ip) {
     printf("%s", inet_ntoa(ip_addr));
 	//와이어샤크 디버깅용으로 만든 임의 함수
 }
-/*
-   일단 귀찮으니까 분리하지말고,
-todo:
-1. 일단 인자 여러개 받아야되고
-2. 내 mac 주소 얻어 오는 것
-3. 상대 맥 주소 얻어 오는 것 => 정상적인 arp 요청을 보내서 응답을 통해서 알아오도록(애초에 arp를 통해서 공격을 하는 만큼, 상대의 ip는 알고 있는 상태에서 내 mac주소를 상대에게 게이트웨이의 mac주소로 인지하게끔 변조)
-4. 확인 여부는 타겟의 arp table 조회
- */
-
 
 Mac get_my_mac_address(const char* my_interface){
 	int file_descripter;
@@ -116,7 +107,6 @@ Mac get_sender_mac_address(pcap_t* handle, Mac source_mac, Ip source_ip, Ip send
 
 		printf("[INFO] Received ARP Reply:\n");
 		printf("       Sender MAC: %s\n", std::string(arpReply->arp_.smac_).c_str());
-//		printf("       Sender IP: %s\n", std::string(ntohl(arpReply->arp_.sip_)).c_str());
  		printf("       Sender IP: ");
         print_ip(ntohl(arpReply->arp_.sip_));
         printf("\n");
@@ -245,7 +235,6 @@ int main(int argc, char* argv[]) {
 	print_ip(myIp);
 	printf("\n");
 
-	// 여러 쌍의 sender와 target을 처리하는 루프
 	for (int i = 2; i < argc; i += 2) {
 		Ip senderIp = Ip(argv[i]);
 		Ip targetIp = Ip(argv[i + 1]);
@@ -256,7 +245,6 @@ int main(int argc, char* argv[]) {
 		print_ip(targetIp);
 		std::cout << std::endl;
 
-		// 각 sender IP에 대해 ARP 요청을 보내고 MAC 주소를 얻음
 		Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
 		Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
 
@@ -268,7 +256,6 @@ int main(int argc, char* argv[]) {
 			continue;
 		}
 
-		// 얻은 MAC 주소를 사용하여 ARP 스푸핑 패킷을 보냄
 		send_Arp(handle, myMac, targetIp, senderMac, senderIp);
 		send_Arp(handle, myMac, senderIp, targetMac, targetIp);
 
@@ -279,7 +266,6 @@ int main(int argc, char* argv[]) {
 
 		std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
 
-		// 다음 쌍으로 넘어가기 전에 대기 (예: 1초 대기)
 		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
