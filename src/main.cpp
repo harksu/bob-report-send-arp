@@ -7,6 +7,7 @@
 #include<arpa/inet.h>
 #include <chrono>
 #include <thread>
+#include<vector>
 
 #include "ethhdr.h"
 #include "arphdr.h"
@@ -217,69 +218,80 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 
 
 int main(int argc, char* argv[]) {
-	if (argc < 4 || argc % 2 != 0) {
-		usage();
-		return -1;
-	}
+    if (argc < 4 || argc % 2 != 0) {
+        usage();
+        return -1;
+    }
 
-	char* dev = argv[1];	
+    char* dev = argv[1];    
 
-	Mac myMac = get_my_mac_address(dev);
+    Mac myMac = get_my_mac_address(dev);
+    std::string macStr = std::string(myMac);
 
-	std::string macStr = std::string(myMac);
+    std::cout << "MAC Address of interface "<< ": " << macStr << std::endl;
+    
+    Ip myIp = get_my_ip_address(dev);    
 
-	std::cout << "MAC Address of interface "<< ": " << macStr << std::endl;
-	
-	char errbuf[PCAP_ERRBUF_SIZE];
-	pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1, errbuf);
+    printf("IP Address of interface : ");
+    print_ip(myIp);
+    printf("\n");
 
-	if (handle == nullptr) {
-		fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
-		return -1;
-	}
+    // 스레드를 저장할 벡터
+    std::vector<std::thread> threads;
 
-	Ip myIp = get_my_ip_address(dev); 	
+    for (int i = 2; i < argc; i += 2) {
+        Ip senderIp = Ip(argv[i]);
+        Ip targetIp = Ip(argv[i + 1]);
 
-	printf("IP Address of interface : ");
-	print_ip(myIp);
-	printf("\n");
+        // 각 sender-target pair에 대해 별도의 스레드를 생성하여 실행
+        threads.emplace_back([=]() {
+            // 각 thread마다 고유의 handle을 생성
+            char errbuf[PCAP_ERRBUF_SIZE];
+            pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1, errbuf);
 
-	for (int i = 2; i < argc; i += 2) {
-		Ip senderIp = Ip(argv[i]);
-		Ip targetIp = Ip(argv[i + 1]);
+            if (handle == nullptr) {
+                fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
+                return;
+            }
 
-		std::cout << "[INFO] Processing pair: Sender IP = ";
-		print_ip(senderIp);
-		std::cout << ", Target IP = ";
-		print_ip(targetIp);
-		std::cout << std::endl;
+            std::cout << "[INFO] Processing pair: Sender IP = ";
+            print_ip(senderIp);
+            std::cout << ", Target IP = ";
+            print_ip(targetIp);
+            std::cout << std::endl;
 
-		Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
-		sleep(1);
-		Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
-		sleep(1);
+            Mac senderMac = get_sender_mac_address(handle, myMac, myIp, senderIp);
+            sleep(1);
+            Mac targetMac = get_sender_mac_address(handle, myMac, myIp, targetIp);
+            sleep(1);
 
-		if (senderMac.isNull()) {
-			fprintf(stderr, "Failed to get MAC address for IP: ");
-			print_ip(senderIp);
-			std::cout << std::endl;
-			continue;
-		}
+            if (senderMac.isNull()) {
+                fprintf(stderr, "Failed to get MAC address for IP: ");
+                print_ip(senderIp);
+                std::cout << std::endl;
+                pcap_close(handle);  // handle을 사용한 후 반드시 close
+                return;
+            }
 
-		
-		send_Arp(handle, myMac, targetIp, senderMac, senderIp);
-		sleep(1);
-		send_Arp(handle, myMac, senderIp, targetMac, targetIp);
-		sleep(1);
+            send_Arp(handle, myMac, targetIp, senderMac, senderIp);
+            sleep(1);
+            send_Arp(handle, myMac, senderIp, targetMac, targetIp);
+            sleep(1);
 
-		std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
+            std::cout << "[INFO] Completed processing for this pair." << std::endl << std::endl;
 
-		relay_packet(handle, myMac, senderMac, senderIp, targetMac, targetIp);
+            relay_packet(handle, myMac, senderMac, senderIp, targetMac, targetIp);
 
-		std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
+            std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
 
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-	}
+            pcap_close(handle);  // handle을 사용한 후 반드시 close
+        });
+    }
 
-	pcap_close(handle);
+    // 모든 thread가 종료될 때까지 대기
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    return 0;
 }
