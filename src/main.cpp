@@ -171,8 +171,8 @@ void relay_packet(pcap_t* handle, Mac myMac, Mac sender_mac, Ip sender_ip, Mac t
 			break;
 			}
 		PEthHdr eth_hdr = (PEthHdr)packet;
-		if((eth_hdr->smac_ == sender_mac || eth_hdr->smac_ == target_mac) && 
-			(eth_hdr->dmac_ == Mac("ff:ff:ff:ff:ff:ff") || eth_hdr -> dmac_ == Mac("00:00:00:00:00:00")))
+		if((eth_hdr->type()==EthHdr::Arp)&&(eth_hdr->smac_ == sender_mac || eth_hdr->smac_ == target_mac) && 
+			(eth_hdr->dmac_ == Mac("ff:ff:ff:ff:ff:ff") || eth_hdr -> dmac_ == Mac("00:00:00:00:00:00")||eth_hdr -> dmac_ == myMac))
 		   { 
 			//정상적인 arp 요청이 들어 올 때, 이걸 변조 회복 프로세스라고 탐지
 			std::cout << "Inspection Recovery Detected!" << std::endl;
