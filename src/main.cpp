@@ -236,16 +236,13 @@ int main(int argc, char* argv[]) {
     print_ip(myIp);
     printf("\n");
 
-    // 스레드를 저장할 벡터
     std::vector<std::thread> threads;
 
     for (int i = 2; i < argc; i += 2) {
         Ip senderIp = Ip(argv[i]);
         Ip targetIp = Ip(argv[i + 1]);
 
-        // 각 sender-target pair에 대해 별도의 스레드를 생성하여 실행
-        threads.emplace_back([=]() {
-            // 각 thread마다 고유의 handle을 생성
+        	threads.emplace_back([=]() {
             char errbuf[PCAP_ERRBUF_SIZE];
             pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1, errbuf);
 
@@ -284,11 +281,10 @@ int main(int argc, char* argv[]) {
 
             std::cout << "[INFO] Completed relay packet for this pair." << std::endl << std::endl;
 
-            pcap_close(handle);  // handle을 사용한 후 반드시 close
+            pcap_close(handle);  
         });
     }
 
-    // 모든 thread가 종료될 때까지 대기
     for (auto& thread : threads) {
         thread.join();
     }
